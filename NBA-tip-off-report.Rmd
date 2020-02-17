@@ -1,0 +1,481 @@
+---
+title: "NBA-tip-off-report"
+author: "Paul Hatini"
+date: "2/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, include=FALSE}
+library(stringr)
+game.summary <- function(code){
+  code <- toString(code)
+  url <- paste("https://www.espn.com/nba/playbyplay?gameId=", code, sep='')
+  game <- readLines(url)
+  
+  date.row <- grep(x=game, "Play-By-Play", value=TRUE)[1]
+  date <- na.omit(str_match(date.row, '.*y\\s-\\s(.*?)\\s-\\sESPN.*'))[2]
+  
+  q1.row <- grep(x=game, 'href=\"#gp-quarter-1\"', value=TRUE)
+  split <- unlist(strsplit(q1.row, split = "time-stamp"))
+  q1.p1 <- split[2]
+  make.split <- unlist(strsplit(q1.row, split = "make"))[1]
+  make.split2 <- unlist(strsplit(make.split, split = "png"))
+  score.first <- na.omit(str_match(make.split2[length(make.split2)-1], '.*500/(.*?)\\..*'))[2]
+  shot.split <- unlist(strsplit(q1.row, split = c("make|miss")))[1]
+  s.split <- unlist(strsplit(shot.split, split = "png"))
+  shoot.first <- na.omit(str_match(s.split[length(s.split)-1], '.*500/(.*?)\\..*'))[2] 
+  
+  away.jumper <- na.omit(str_match(q1.p1, '.*game-details\\\">(.*?)\\svs.*'))[2]
+  home.jumper <- na.omit(str_match(q1.p1, '.*\\svs.\\s(.*?)\\s\\(.*'))[2]
+  winning.team <- na.omit(str_match(q1.p1, '.*500/(.*?).png.*'))[2]
+  
+  h.a.row <- grep(x=game, 'gamepackage-header-wrap', value=TRUE)
+  split <- unlist(strsplit(h.a.row, split = "png"))
+  away.s <- split[1]
+  away.team <- na.omit(str_match(away.s, '.*500/(.*?)\\..*'))[2]
+  home.s <- split[3]
+  home.team <- na.omit(str_match(home.s, '.*500/(.*?)\\..*'))[2]
+
+  row <- data.frame(date, away.jumper, home.jumper, winning.team, away.team, home.team, shoot.first, score.first, stringsAsFactors = FALSE)
+  return(row)
+}
+
+reg.2018 <- read.csv("reg.2018.csv", header=TRUE)
+reg.2018 <- read.csv("~/Desktop/UMass Statistics/STATS 535/reg.2018.csv")
+reg.2018$date <- as.Date(reg.2018$date, format="%B %d, %Y")
+reg.2018 <- reg.2018[order(reg.2018$date),]
+
+reg.2019 <- read.csv("~/Desktop/UMass Statistics/STATS 535/reg.2019.csv")
+reg.2019$date <- as.Date(reg.2019$date, format="%B %d, %Y")
+reg.2019 <- reg.2019[order(reg.2019$date),]
+
+reg.2018$away.jumper <- as.character(reg.2018$away.jumper)
+reg.2018$home.jumper <- as.character(reg.2018$home.jumper)
+reg.2019$away.jumper <- as.character(reg.2019$away.jumper)
+reg.2019$home.jumper <- as.character(reg.2019$home.jumper)
+
+win.and.shoot.first.2018 <- 0
+win.and.score.first.2018 <- 0
+
+for(i in 1:nrow(reg.2018)){
+  if(reg.2018$winning.team[i] == reg.2018$shoot.first[i]){
+    win.and.shoot.first.2018 = win.and.shoot.first.2018 + 1
+  }
+}
+
+win.and.shoot.2018 <- win.and.shoot.first.2018/nrow(reg.2018)
+lose.and.shoot.2018 <- 1-win.and.shoot.2018
+
+for(i in 1:nrow(reg.2018)){
+  if(reg.2018$winning.team[i] == reg.2018$score.first[i]){
+    win.and.score.first.2018 = win.and.score.first.2018 + 1
+  }
+}
+
+win.and.score.2018 <- win.and.score.first.2018/nrow(reg.2018)
+lose.and.score.2018 <- 1-win.and.score.2018
+
+## 2019 below
+win.and.shoot.first.2019 <- 0
+win.and.score.first.2019 <- 0
+
+for(i in 1:nrow(reg.2019)){
+  if(reg.2019$winning.team[i] == reg.2019$shoot.first[i]){
+    win.and.shoot.first.2019 = win.and.shoot.first.2019 + 1
+  }
+}
+
+win.and.shoot.2019 <- win.and.shoot.first.2019/nrow(reg.2019)
+lose.and.shoot.2019 <- 1-win.and.shoot.2019
+
+for(i in 1:nrow(reg.2019)){
+  if(reg.2019$winning.team[i] == reg.2019$score.first[i]){
+    win.and.score.first.2019 = win.and.score.first.2019 + 1
+  }
+}
+
+win.and.score.2019 <- win.and.score.first.2019/nrow(reg.2019)
+lose.and.score.2019 <- 1-win.and.score.2019
+
+a <- rbind(c(win.and.shoot.2018, win.and.shoot.2019),
+           c(lose.and.shoot.2018, lose.and.shoot.2019))
+a <- as.data.frame(a)
+colnames(a) <- c("2018", "2019")
+rownames(a) <- c("Shoot", "Dont")
+
+b <- rbind(c(win.and.score.2018, win.and.score.2019),
+           c(lose.and.score.2018, lose.and.score.2019))
+b <- as.data.frame(b)
+colnames(b) <- c("2018", "2019")
+rownames(b) <- c("Score", "Dont")
+
+### BREAK
+
+reg.2018$winner.wins <- 0
+reg.2018$winner.losses <- 0
+reg.2018$loser.wins <- 0 
+reg.2018$loseer.losses <- 0
+
+for(i in 1:nrow(reg.2018)){
+  if(reg.2018$winning.team[i] == reg.2018$home.team[i]){
+    reg.2018$winning.jumper[i] <- reg.2018$home.jumper[i]
+    reg.2018$losing.jumper[i] <- reg.2018$away.jumper[i]
+  }
+  else{
+    reg.2018$winning.jumper[i] <- reg.2018$away.jumper[i]
+    reg.2018$losing.jumper[i] <- reg.2018$home.jumper[i]
+  }
+}
+
+
+library(dplyr)
+total1 <- as.data.frame(count(reg.2018, home.jumper))
+names(total1)[1] <- "jumper"
+total2 <- as.data.frame(count(reg.2018, away.jumper))
+names(total2)[1] <- "jumper"
+
+total <- merge(total1, total2, by="jumper", all.x=TRUE, all.y = TRUE)
+total$total <- total$n.x + total$n.y
+
+total.wins <- as.data.frame(count(reg.2018, winning.jumper))
+names(total.wins)[1] <- "jumper"
+total <- merge(total, total.wins, by="jumper", all.x=TRUE)
+names(total)[5] <- "wins"
+total$percentage <- total$wins/total$total
+subtotal <- total[which(total$total >= 40),]
+
+## ELO
+ELO <- function(home.jumper.ELO,away.jumper.ELO,k){
+  EA <- (1 / (1 + 10^((away.jumper.ELO - home.jumper.ELO)/400)))
+  EB <- (1 / (1 + 10^((home.jumper.ELO - away.jumper.ELO)/400)))
+  
+  new.home.ELO.win  <- home.jumper.ELO + k * (1 - EA)
+  new.home.ELO.loss  <- home.jumper.ELO + k * (0 - EA)
+
+  new.away.ELO.win  <- away.jumper.ELO + k * (1 - EB)
+  new.away.ELO.loss  <- away.jumper.ELO + k * (0 - EB)
+
+  chance.to.win <- data.frame(chance.to.win=c(EA, EB))
+  home.jumper.wins  <- round(data.frame(home.jumper.wins=c(new.home.ELO.win, new.away.ELO.loss)), digits=0)
+  road.jumper.wins  <- round(data.frame(road.jumper.wins=c(new.home.ELO.loss, new.away.ELO.win)), digits=0)
+
+  df <- cbind(chance.to.win, home.jumper.wins, road.jumper.wins)
+  rownames(df) <- c('home.jumper', 'away.jumper')
+  return(df)
+}
+
+## ELO POPULATION
+jumpers <- total$jumper
+rating <- rep(0, length(jumpers))
+ELO.df <- cbind(jumpers, rating)
+ELO.df <- as.data.frame(ELO.df)
+ELO.df$rating <- 1500
+
+reg.2018$home.jumper.ELO.k20 <- 0
+reg.2018$away.jumper.ELO.k20 <- 0
+reg.2018$ELO.estimate.k20 <- 0 
+
+
+for(i in 1:nrow(reg.2018)){
+  home.index <- which(ELO.df$jumpers == reg.2018$home.jumper[i])
+  away.index <- which(ELO.df$jumpers == reg.2018$away.jumper[i])
+  reg.2018$home.jumper.ELO.k20[i] <- ELO.df$rating[home.index]
+  reg.2018$away.jumper.ELO.k20[i] <- ELO.df$rating[away.index]
+  match <- ELO(reg.2018$home.jumper.ELO.k20[i], reg.2018$away.jumper.ELO.k20[i], 20)
+  reg.2018$ELO.estimate.k20[i] <- match[1,1]
+  if(reg.2018$winning.team[i] == reg.2018$home.team[i]){
+    ELO.df$rating[home.index] <- match[1,2]
+    ELO.df$rating[away.index] <- match[2,2]
+  }
+  if(reg.2018$winning.team[i] == reg.2018$away.team[i]){
+    ELO.df$rating[home.index] <- match[1,3]
+    ELO.df$rating[away.index] <- match[2,3]
+  }
+}
+library(ggplot2)
+library(plotROC)
+
+reg.2018$result <- 0
+
+for(i in 1:nrow(reg.2018)){
+  if(reg.2018$winning.team[i] == reg.2018$home.team[i]){
+    reg.2018$result[i] <- 1
+  }
+}
+
+###
+log.5 <- function(home,away){
+  numerator <- home - (home * away)
+  denominator <- home + away - 2 * home * away
+  report = numerator / denominator
+  return(report)
+}
+###
+jumpers <- total$jumper
+wins <- rep(0, length(jumpers))
+losses <- rep(0, length(jumpers))
+record <- cbind(jumpers, wins, losses)
+record <- as.data.frame(record)
+record$wins <- 0
+record$losses <- 0
+
+reg.2018$home.jumper.wins <- 0
+reg.2018$home.jumper.losses <- 0
+reg.2018$away.jumper.wins <- 0 
+reg.2018$away.jumper.losses <- 0
+
+#reg.2018 <- within(reg.2018, rm(loser.losses, loser.wins, winner.losses, winner.wins))
+
+for(i in 1:nrow(reg.2018)){
+  for(j in 1:nrow(record)){
+    if(reg.2018$winning.jumper[i] == record$jumpers[j]){
+      if(reg.2018$winning.jumper[i] == reg.2018$home.jumper[i]){
+        reg.2018$home.jumper.wins[i] <- record$wins[j]
+        record$wins[j] = record$wins[j] + 1
+        reg.2018$home.jumper.losses[i] <- record$losses[j]
+      }else{
+        reg.2018$away.jumper.wins[i] <- record$wins[j]
+        record$wins[j] = record$wins[j] + 1
+        reg.2018$away.jumper.losses[i] <- record$losses[j]
+      }
+    }
+  }
+  for(k in 1:nrow(record)){
+     if(reg.2018$losing.jumper[i] == record$jumpers[k]){
+      if(reg.2018$losing.jumper[i] == reg.2018$home.jumper[i]){
+        reg.2018$home.jumper.losses[i] <- record$losses[k]
+        record$losses[k] = record$losses[k] + 1
+        reg.2018$home.jumper.wins[i] <- record$wins[k]
+      }else{
+        reg.2018$away.jumper.losses[i] <- record$losses[k]
+        record$losses[k] = record$losses[k] + 1
+        reg.2018$away.jumper.wins[i] <- record$wins[k]
+      }
+    }
+  }
+}
+
+for(i in 1:nrow(reg.2018)){
+  reg.2018$home.total[i] <- reg.2018$home.jumper.wins[i] + reg.2018$home.jumper.losses[i]
+  reg.2018$away.total[i] <- reg.2018$away.jumper.wins[i] + reg.2018$away.jumper.losses[i]
+}
+
+#reg.2018 <- within(reg.2018, rm(winner.percentage, loser.percentage))
+
+reg.2018$home.jumper.percentage <- 0
+reg.2018$away.jumper.percentage <- 0
+
+for(i in 1:nrow(reg.2018)){
+  reg.2018$home.jumper.percentage[i] <- reg.2018$home.jumper.wins[i] / (reg.2018$home.jumper.wins[i] + reg.2018$home.jumper.losses[i])
+  reg.2018$away.jumper.percentage[i] <- reg.2018$away.jumper.wins[i] / (reg.2018$away.jumper.wins[i] + reg.2018$away.jumper.losses[i])
+}
+
+reg.2018$log.5.estimate <- 0
+
+for(i in 1:nrow(reg.2018)){
+  reg.2018$log.5.estimate[i] <- log.5(reg.2018$home.jumper.percentage[i], reg.2018$away.jumper.percentage[i])
+}
+
+reg.2018$home.total <- 0
+reg.2018$away.total <- 0
+
+for(i in 1:nrow(reg.2018)){
+  reg.2018$home.total[i] <- reg.2018$home.jumper.wins[i] + reg.2018$home.jumper.losses[i]
+  reg.2018$away.total[i] <- reg.2018$away.jumper.wins[i] + reg.2018$away.jumper.losses[i]
+}
+###
+relevant.2018.reg <- reg.2018[ which(reg.2018$home.total > 10 & reg.2018$away.total > 10),]
+
+physical <- read.csv("~/Desktop/UMass Statistics/STATS 535/draftcombines.csv")
+physical$PLAYER_NAME <- as.character(physical$PLAYER_NAME)
+colnames(physical)[colnames(physical) == 'PLAYER_NAME'] <- 'jumpers'
+physical.elo <- merge(ELO.df, physical, by="jumpers", all.x=FALSE)
+
+fit <- lm(rating ~ HEIGHT_WO_SHOES + WEIGHT + WINGSPAN + STANDING_REACH + STANDING_VERTICAL_LEAP + BODY_FAT_PCT + LANE_AGILITY_TIME + THREE_QUARTER_SPRINT + BENCH_PRESS, data=physical.elo)
+summary(fit)
+
+getwd
+
+jumper.pred <- merge(ELO.df, physical, by="jumpers", all.y=TRUE)
+for(i in 1:nrow(jumper.pred)){
+  if(is.na(jumper.pred$rating[i]) == FALSE){
+    jumper.pred$rating[i] <- 1
+  }
+  else{jumper.pred$rating[i] <- 0}
+}
+
+model.j <- glm(rating ~ HEIGHT_WO_SHOES + WEIGHT + WINGSPAN + STANDING_REACH + STANDING_VERTICAL_LEAP + BODY_FAT_PCT + LANE_AGILITY_TIME + THREE_QUARTER_SPRINT + BENCH_PRESS, family = binomial(link = 'logit'), data=jumper.pred)
+summary(model.j)
+
+
+
+```
+
+## Introduction
+-A jump ball is a method used to begin or resume play in basketball  
+
+-Two opposing players attempt to gain control of the ball after an official tosses it into the air between them  
+
+-Neither jumper may catch the tossed or tapped ball until it touches one of the eight non-jumpers  
+
+- [Video example](https://www.youtube.com/watch?v=WgRQArUar08).
+
+## Premise
+-For this analysis, I've gathered data pertaining to jump ball situations
+
+-Then, I adapted a method to measure how different players perform in these situations  
+
+-Finally, I analyzed the predictive power of these methods
+
+## Quote
+"For me, it's a timing thing. There are obviously some guys who feel like you're more athletic than, taller than at times, and I know I can get these. But with some guys, they're the same athletically as you... guys like Andre Drummond, Rudy Gobert, Tyson Chandler ... some have little tricks ... bumping into your arm, going into your body, stuff like that."  
+
+  -Deandre Jordan, 54.4% win rate
+  
+## Scatter plot
+
+```{r}
+ggplot(subtotal, aes(x= jumper, y= percentage)) +
+  labs(subtitle="For subset with n > 40", 
+        y="Win Rate", 
+        x="Index", 
+        title="Percentage Plot") +
+  theme_bw() +
+  theme(axis.text.x = element_blank()) +
+  geom_point() +
+  geom_text(aes(label=ifelse(jumper == 'DeAndre Jordan' | jumper == 'Andre Drummond' | jumper == 'Rudy Gobert',as.character(jumper),'')),hjust=0,vjust=0)
+```
+
+## Methodology
+-I used NBA play-by-play data scraped from ESPN.com using an original function  
+
+-I scraped the full 2018 season (1230 games) and the first ~25% of the 2019 season (308 games)
+
+### **Input** 
+-Game ID  
+
+### **Output**
+-Date, jumpers, teams, jump ball winner as well as which team shoots first and which team scores first
+
+## Descriptive statistics
+
+Is there something here? 
+
+## When you win do you shoot first?
+
+```{r, out.width = '55%', out.height = '55%'}
+barplot(as.matrix(a))
+```
+
+<font size="4">X ~ Geom(1-Turnover Rate), where winning team is the sum of the odds and losing team is the sum of the evens.</font> 
+
+```{r, echo=TRUE, size = 'tiny'}
+sum(dgeom(0:10,0.87)[c(1,3,5,7,9)])
+```
+
+
+## When you win do you score first?
+
+```{r, out.width = '55%', out.height = '55%'}
+barplot(as.matrix(b))
+```
+
+<font size="4">X ~ Geom(Scoring Rate), where winning team is the sum of the odds and losing team is the sum of the evens.</font> 
+
+```{r, echo=TRUE, size = 'tiny'}
+sum(dgeom(0:10,0.5)[c(1,3,5,7,9)])
+```
+
+
+## Distribution of win rate
+
+```{r}
+hist(subtotal$percentage, freq = FALSE)
+curve(dnorm(x, mean(subtotal$percentage), sd(subtotal$percentage)), add=TRUE, col="darkblue", lwd=2)
+```
+
+## We know:
+-Given we are able to predict the jump ball winner we can predict who shoots first and who scores first with a high degree of certainty  
+
+-Winning percentages are approximately normally distributed (Weibull distribution)
+
+## Model
+### **Elo Rating**
+-Elo rating was originally developed as a chess rating system  
+
+-It is a method for calculating the relative skill of players in zero-sum games  
+
+-Adapted for competition in video games, football, basketball, baseball, table tennis and board games such as scrabble  
+
+-Ratings (numerical) change depending on the outcome of games played  
+
+-The difference in rating between two players serves as a predictor for the outcome of the match  
+
+## Formula
+Given: ELO.A, ELO.B, **k**
+$$E[A] = \frac{1}{(1 + 10^{\frac{ELO.A - ELO.B}{400}})}$$
+$$E[B] = \frac{1}{(1 + 10^{\frac{ELO.B - ELO.A}{400}})}$$
+$$New\,ELO.A\,|\,A\, wins  = ELO.A + k * (1 - E[A])$$
+$$New\,ELO.A\,|\,A\, loses  = ELO.A + k * (0 - E[A])$$
+$$New\,ELO.B\,|\,B\, wins  = ELO.B + k * (1 - E[B])$$
+$$New\,ELO.B\,|\,B\, loses  = ELO.B + k * (0 - E[B])$$
+
+## Implementation
+K factor determines the magnitude by which the rating reacts to new game results  
+
+-In my analysis I couldn't find a significant effect of k factor  
+
+-I borrowed k = 20 from a FiveThirtyEight analysis 
+
+```{r, echo=TRUE}
+ELO(1500,1600,20)
+```
+
+## ROC plot
+
+```{r}
+k20 <- ggplot(relevant.2018.reg, aes(d = result, m = ELO.estimate.k20)) + geom_roc() + geom_abline(slope = 1, intercept = 0)
+auc11 <- as.character(round(calc_auc(k20)$AUC, 2))
+k20
+print(paste("Area under curve:", auc11))
+```
+
+## Predicting Elo Rating based on physical characteristics
+-NBA combine CSV containing data on the majority of players who entered the NBA between 2000 and 2018
+
+-Data includes: height, weight, body fat percentage, wingspan, standing reach, vertical jump, lane agility, three quarters court sprint, and bench press  
+
+-Gathered and used by NBA as part of the draft process
+
+## Multiple linear regression of ELO ratings on combine data
+
+```{r}
+fit <- lm(rating ~ HEIGHT_WO_SHOES + WEIGHT + WINGSPAN + STANDING_REACH + STANDING_VERTICAL_LEAP + BODY_FAT_PCT + LANE_AGILITY_TIME + THREE_QUARTER_SPRINT + BENCH_PRESS, data=physical.elo)
+summary(fit)
+```
+
+
+
+## Multiple logistic regression of jumper(yes/no) on combine data
+
+```{r}
+model.j <- glm(rating ~ HEIGHT_WO_SHOES + WEIGHT + WINGSPAN + STANDING_REACH + STANDING_VERTICAL_LEAP + BODY_FAT_PCT + LANE_AGILITY_TIME + THREE_QUARTER_SPRINT + BENCH_PRESS, family = binomial(link = 'logit'), data=jumper.pred)
+summary(model.j)
+```
+
+## Conclusion
+
+-Elo model provides a significant predictor of jump ball success rate  
+
+-Physical attributes only explain 30% of the variance in Elo rating within the subset of NBA jumpers  
+
+-However, data suggets whether or not a player will join the subset of jumpers can be predicted by physical attributes
+
+-There is a baseline physical ability to jump ball in the NBA, however, Elo rating is effective in quantifying the skill involved
+
+-We can (somewhat) predict the toss up
