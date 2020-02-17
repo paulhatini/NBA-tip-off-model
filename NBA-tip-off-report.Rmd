@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r, include=FALSE}
+library(dplyr)
 library(stringr)
 game.summary <- function(code){
   code <- toString(code)
@@ -133,7 +134,6 @@ for(i in 1:nrow(reg.2018)){
 }
 
 
-library(dplyr)
 total1 <- as.data.frame(count(reg.2018, home.jumper))
 names(total1)[1] <- "jumper"
 total2 <- as.data.frame(count(reg.2018, away.jumper))
