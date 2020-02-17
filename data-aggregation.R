@@ -11,7 +11,7 @@ reg.2018 <- reg.2018[order(reg.2018$date),]
 reg.2018$away.jumper <- as.character(reg.2018$away.jumper)
 reg.2018$home.jumper <- as.character(reg.2018$home.jumper)
 
-# Record initialization and population 
+# Record initialization and population
 for(i in 1:nrow(reg.2018)){
   if(reg.2018$winning.team[i] == reg.2018$home.team[i]){
     reg.2018$winning.jumper[i] <- reg.2018$home.jumper[i]
@@ -38,11 +38,6 @@ names(total.wins)[1] <- "jumper"
 total <- merge(total, total.wins, by="jumper", all.x=TRUE)
 names(total)[5] <- "wins"
 total$percentage <- total$wins/total$total
-
-for(i in 1:nrow(reg.2018)){
-  reg.2018$home.total[i] <- reg.2018$home.jumper.wins[i] + reg.2018$home.jumper.losses[i]
-  reg.2018$away.total[i] <- reg.2018$away.jumper.wins[i] + reg.2018$away.jumper.losses[i]
-}
 
 # Helper/summary dataframe 'record' creation and related columns in 'reg.2018' populated
 jumpers <- total$jumper
@@ -126,5 +121,21 @@ for(i in 1:nrow(reg.2018)){
 }
 
 # 'relevant.2018.reg' dataframe created from 2018.reg with sufficient sample size
+for(i in 1:nrow(reg.2018)){
+  reg.2018$home.total[i] <- reg.2018$home.jumper.wins[i] + reg.2018$home.jumper.losses[i]
+  reg.2018$away.total[i] <- reg.2018$away.jumper.wins[i] + reg.2018$away.jumper.losses[i]
+}
+
 relevent.2018.reg <- reg.2018[ which(reg.2018$home.total > 10 & reg.2018$away.total > 10),]
+
+# ROC plot
+library(AUC)
+library(plotROC)
+library(ggplot2)
+k20 <- ggplot(relevent.2018.reg, aes(d = result, m = ELO.estimate.k20)) + geom_roc() + geom_abline(slope = 1, intercept = 0)
+auc11 <- as.character(round(calc_auc(k20)$AUC, 2))
+k20
+print(paste("Area under curve:", auc11))
+
+
 
